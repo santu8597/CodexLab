@@ -7,30 +7,25 @@ import { RefreshCw, ExternalLink, AlertCircle } from "lucide-react"
 
 interface PreviewProps {
   sandboxId: string | null
+  previewUrl?: string | null
 }
 
-export function Preview({ sandboxId }: PreviewProps) {
+export function Preview({ sandboxId, previewUrl: externalPreviewUrl }: PreviewProps) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [isMockSandbox, setIsMockSandbox] = useState(false)
 
   useEffect(() => {
-    if (sandboxId) {
-      // Check if it's a mock sandbox
-      if (sandboxId.startsWith("mock-")) {
-        setIsMockSandbox(true)
-        setPreviewUrl(null)
-      } else {
-        setIsMockSandbox(false)
-        // E2B sandboxes typically expose apps on port 3000
-        setPreviewUrl(`https://${sandboxId}.e2b.dev:3000`)
-      }
+    if (externalPreviewUrl) {
+      // Use the provided preview URL from E2B
+      setPreviewUrl(externalPreviewUrl)
+    } else if (sandboxId && !sandboxId.startsWith("memfs-") && !sandboxId.startsWith("mock-")) {
+      // Fallback for E2B sandboxes without explicit URL
+      setPreviewUrl(`https://${sandboxId}.e2b.dev:3000`)
     } else {
       setPreviewUrl(null)
-      setIsMockSandbox(false)
     }
-  }, [sandboxId])
+  }, [sandboxId, externalPreviewUrl])
 
   const handleRefresh = () => {
     if (previewUrl) {
@@ -72,30 +67,12 @@ export function Preview({ sandboxId }: PreviewProps) {
     )
   }
 
-  if (isMockSandbox) {
+  if (!previewUrl) {
     return (
-      <div className="flex-1 border-l flex flex-col">
-        <div className="border-b p-3 bg-muted/30">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium text-sm">Preview (Mock Mode)</div>
-              <div className="text-xs text-muted-foreground mt-1">Mock sandbox - no live preview available</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="flex-1 flex items-center justify-center">
-          <Card className="p-6 text-center max-w-md">
-            <AlertCircle className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
-            <div className="font-medium mb-2">Mock Sandbox Mode</div>
-            <div className="text-sm text-muted-foreground mb-4">
-              The application is running in mock mode for development/testing. To see a live preview, configure your E2B
-              API key.
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Files have been generated and can be viewed in the editor panel.
-            </div>
-          </Card>
+      <div className="flex-1 border-l flex items-center justify-center bg-muted/20">
+        <div className="text-center text-muted-foreground">
+          <div className="text-lg font-medium mb-2">Preview Loading</div>
+          <div className="text-sm">Waiting for preview URL...</div>
         </div>
       </div>
     )

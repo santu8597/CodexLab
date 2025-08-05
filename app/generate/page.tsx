@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/Sidebar"
 import { Editor } from "@/components/Editor"
+import { Preview } from "@/components/Preview"
 import { Button } from "@/components/ui/button"
 import { Loader2, Download, ArrowLeft, RefreshCw } from "lucide-react"
 
@@ -33,6 +34,7 @@ function GenerateContent() {
     logs: [],
   })
   const [sandboxId, setSandboxId] = useState<string | null>(null)
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Auto-start generation when the page loads
@@ -92,6 +94,8 @@ function GenerateContent() {
 
               if (data.type === "sandbox_created") {
                 setSandboxId(data.sandboxId)
+              } else if (data.type === "preview_url") {
+                setPreviewUrl(data.url)
               } else if (data.type === "file_start") {
                 setGenerationStatus((prev) => ({
                   ...prev,
@@ -111,6 +115,7 @@ function GenerateContent() {
                   logs: [...prev.logs, data.message],
                 }))
               } else if (data.type === "complete") {
+                setPreviewUrl(data.previewUrl || previewUrl)
                 setGenerationStatus((prev) => ({
                   ...prev,
                   status: "complete",
@@ -302,9 +307,30 @@ function GenerateContent() {
         <Sidebar files={files} currentFile={currentFile} onFileSelect={setCurrentFile} />
       </div>
 
-      {/* Right Panel - Code Editor */}
+      {/* Right Panel - Code Editor and Preview */}
       <div className="flex-1 flex">
         <Editor file={currentFile} />
+        {generationStatus.status === "complete" && (
+          <Preview sandboxId={sandboxId} previewUrl={previewUrl} />
+        )}
+        {generationStatus.status !== "complete" && (
+          <div className="flex-1 border-l flex items-center justify-center bg-muted/20">
+            <div className="text-center text-muted-foreground">
+              <div className="text-lg font-medium mb-2">Preview</div>
+              <div className="text-sm">
+                {generationStatus.status === "idle" && "Generate a project to see the preview"}
+                {generationStatus.status === "generating" && "Generating project files..."}
+                {generationStatus.status === "building" && "Building project..."}
+                {generationStatus.status === "error" && "Generation failed"}
+              </div>
+              {isGenerating && (
+                <div className="flex items-center justify-center mt-4">
+                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

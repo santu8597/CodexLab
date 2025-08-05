@@ -1,7 +1,6 @@
 import { generateText, streamText } from "ai"
 import { google } from "@ai-sdk/google"
-import { Volume } from "memfs"
-import * as path from "path"
+import { Sandbox } from '@e2b/code-interpreter'
 export interface ProjectContext {
   description: string
   files: string[]
@@ -15,85 +14,11 @@ export interface FileGenerationResult {
   isComplete: boolean
 }
 
-// MemFS-based sandbox implementation
-class MemFSSandbox {
-  public id: string
-  private vol: Volume
-  private files: { write: (path: string, content: string) => Promise<void>; read: (path: string) => Promise<string> }
-  private commands: { run: (command: string) => Promise<{ stdout: string; stderr: string; exitCode: number }> }
-
-  constructor() {
-    this.id = `memfs-${Date.now()}`
-    this.vol = new Volume()
-    
-    this.files = {
-      write: async (filePath: string, content: string): Promise<void> => {
-        const dir = path.dirname(filePath)
-        try {
-          this.vol.mkdirSync(dir, { recursive: true })
-        } catch (error) {
-          // Directory might already exist
-        }
-        this.vol.writeFileSync(filePath, content)
-        console.log(`MemFS: Writing file ${filePath} (${content.length} chars)`)
-      },
-      read: async (filePath: string): Promise<string> => {
-        try {
-          return this.vol.readFileSync(filePath, 'utf8') as string
-        } catch (error) {
-          return ""
-        }
-      }
-    }
-
-    this.commands = {
-      run: async (command: string): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
-        console.log(`MemFS: Running command: ${command}`)
-
-        // Simulate different command responses
-        if (command.includes("npm install")) {
-          return {
-            stdout: "added 1000 packages in 30s",
-            stderr: "",
-            exitCode: 0,
-          }
-        } else if (command.includes("npm run build")) {
-          return {
-            stdout: "✓ Compiled successfully",
-            stderr: "",
-            exitCode: 0,
-          }
-        } else if (command.includes("npm run dev")) {
-          return {
-            stdout: "ready - started server on 0.0.0.0:3000",
-            stderr: "",
-            exitCode: 0,
-          }
-        } else {
-          return {
-            stdout: `MemFS output for: ${command}`,
-            stderr: "",
-            exitCode: 0,
-          }
-        }
-      }
-    }
-  }
-
-  async readFile(filePath: string): Promise<string> {
-    return this.files.read(filePath)
-  }
-
-  async close(): Promise<void> {
-    console.log("MemFS: Closing sandbox")
-    this.vol.reset()
-  }
-}
-
 export class ProjectOrchestrator {
-  private sandbox: any = null
+  private sandbox: Sandbox | null = null
   private context: ProjectContext
   private onUpdate: (data: any) => void
+  private previewUrl: string | null = null
 
   constructor(description: string, onUpdate: (data: any) => void) {
     this.context = {
@@ -105,25 +30,38 @@ export class ProjectOrchestrator {
     this.onUpdate = onUpdate
   }
 
+  getPreviewUrl(): string | null {
+    return this.previewUrl
+  }
+
   async createSandbox(): Promise<string> {
     this.onUpdate({
       type: "log",
-      message: "Creating MemFS sandbox...",
+      message: "Creating E2B sandbox...",
     })
 
-    this.sandbox = new MemFSSandbox()
+    if (!process.env.E2B_API_KEY) {
+      throw new Error("E2B_API_KEY environment variable is not set")
+    }
+
+    this.sandbox = await Sandbox.create({
+      apiKey: process.env.E2B_API_KEY,
+      timeoutMs: 60000,
+    })
+
+    const sandboxId = this.sandbox.sandboxId
 
     this.onUpdate({
       type: "sandbox_created",
-      sandboxId: this.sandbox.id,
+      sandboxId: sandboxId,
     })
 
     this.onUpdate({
       type: "log",
-      message: `MemFS sandbox created: ${this.sandbox.id}`,
+      message: `E2B sandbox created: ${sandboxId}`,
     })
 
-    return this.sandbox.id
+    return sandboxId
   }
 
   async generateProjectPlan(): Promise<string[]> {
@@ -356,7 +294,7 @@ Return only the file content, no explanations.`
       fullContent = fullContent.replace(/```[\w]*\n?|\n?```/g, "").trim()
 
       // Write the complete file to sandbox
-      await this.sandbox.files.write(filePath, fullContent)
+      await this.sandbox!.files.write(filePath, fullContent)
 
       this.onUpdate({
         type: "log",
@@ -433,11 +371,27 @@ Return only the file content, no explanations.`
     })
 
     try {
-      // Install dependencies (simulated)
+      // Install dependencies
       await this.runCommand("npm install")
 
-      // Build the project (simulated)
-      await this.runCommand("npm run build")
+      // Start the dev server in background
+      await this.runCommand("nohup npm run dev > /tmp/next.log 2>&1 &")
+
+      // Get the preview URL
+      if (this.sandbox) {
+        const host = await this.sandbox.getHost(3000)
+        this.previewUrl = `https://${host}`
+        
+        this.onUpdate({
+          type: "preview_url",
+          url: this.previewUrl,
+        })
+
+        this.onUpdate({
+          type: "log",
+          message: `✓ Preview URL: ${this.previewUrl}`,
+        })
+      }
 
       this.onUpdate({
         type: "log",
@@ -447,8 +401,9 @@ Return only the file content, no explanations.`
       const message = error instanceof Error ? error.message : "Unknown error"
       this.onUpdate({
         type: "log",
-        message: `Build completed with MemFS simulation: ${message}`,
+        message: `Build failed: ${message}`,
       })
+      throw error
     }
   }
 
@@ -458,9 +413,12 @@ Return only the file content, no explanations.`
     }
 
     try {
-      // For MemFS sandbox, create a simple export response
-      const memfsExport = Buffer.from("MemFS project export - simulated project files")
-      return memfsExport
+      // Create a zip file with the project files
+      await this.runCommand("zip -r /tmp/project.zip .")
+      
+      // Read the zip file
+      const zipContent = await this.sandbox.files.read("/tmp/project.zip")
+      return Buffer.from(zipContent, 'binary')
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
       throw new Error(`Export failed: ${message}`)
@@ -470,7 +428,7 @@ Return only the file content, no explanations.`
   async cleanup(): Promise<void> {
     if (this.sandbox) {
       try {
-        await this.sandbox.close()
+        await this.sandbox.kill()
         this.onUpdate({
           type: "log",
           message: "Sandbox cleaned up",
@@ -511,20 +469,13 @@ Return only the file content, no explanations.`
         }
       }
 
-      // Build the project
+      // Build the project (includes starting dev server)
       await this.buildProject()
-
-      // Start the development server (simulated - don't await, let it run in background)
-      this.runCommand("npm run dev").catch((error) => {
-        this.onUpdate({
-          type: "log",
-          message: `Dev server start simulated: ${error.message}`,
-        })
-      })
 
       this.onUpdate({
         type: "complete",
-        sandboxId,
+        sandboxId: this.sandbox!.sandboxId,
+        previewUrl: this.previewUrl,
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
