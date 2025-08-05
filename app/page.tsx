@@ -1,260 +1,154 @@
 "use client"
 
-import { useState, useRef } from "react"
-import { Sidebar } from "@/components/Sidebar"
-import { Editor } from "@/components/Editor"
-import { Preview } from "@/components/Preview"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Card } from "@/components/ui/card"
-import { Loader2, Play, Download } from "lucide-react"
-
-interface FileNode {
-  name: string
-  path: string
-  content?: string
-  children?: FileNode[]
-}
-
-interface GenerationStatus {
-  currentFile: string
-  status: "idle" | "generating" | "building" | "complete" | "error"
-  logs: string[]
-}
+import { Sparkles, Code2, Zap, Rocket } from "lucide-react"
 
 export default function Home() {
   const [prompt, setPrompt] = useState("")
-  const [files, setFiles] = useState<FileNode[]>([])
-  const [currentFile, setCurrentFile] = useState<FileNode | null>(null)
-  const [generationStatus, setGenerationStatus] = useState<GenerationStatus>({
-    currentFile: "",
-    status: "idle",
-    logs: [],
-  })
-  const [sandboxId, setSandboxId] = useState<string | null>(null)
-  const abortControllerRef = useRef<AbortController | null>(null)
+  const router = useRouter()
 
-  const handleGenerate = async () => {
+  const handleGenerate = () => {
     if (!prompt.trim()) return
+    
+    // Redirect to code view page with the prompt
+    const encodedPrompt = encodeURIComponent(prompt)
+    router.push(`/generate?prompt=${encodedPrompt}`)
+  }
 
-    // Abort any existing generation
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort()
-    }
-
-    abortControllerRef.current = new AbortController()
-
-    setFiles([])
-    setCurrentFile(null)
-    setGenerationStatus({
-      currentFile: "",
-      status: "generating",
-      logs: ["Starting generation..."],
-    })
-
-    try {
-      const response = await fetch("/api/generate", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ prompt }),
-        signal: abortControllerRef.current.signal,
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new Error(`HTTP ${response.status}: ${errorText}`)
-      }
-
-      const reader = response.body?.getReader()
-      if (!reader) throw new Error("No response body")
-
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-
-        const chunk = new TextDecoder().decode(value)
-        const lines = chunk.split("\n").filter((line) => line.trim())
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6))
-
-              if (data.type === "sandbox_created") {
-                setSandboxId(data.sandboxId)
-              } else if (data.type === "file_start") {
-                setGenerationStatus((prev) => ({
-                  ...prev,
-                  currentFile: data.path,
-                }))
-              } else if (data.type === "file_content") {
-                updateFileContent(data.path, data.content, data.isComplete)
-              } else if (data.type === "status") {
-                setGenerationStatus((prev) => ({
-                  ...prev,
-                  status: data.status,
-                  currentFile: data.currentFile || prev.currentFile,
-                }))
-              } else if (data.type === "log") {
-                setGenerationStatus((prev) => ({
-                  ...prev,
-                  logs: [...prev.logs, data.message],
-                }))
-              } else if (data.type === "complete") {
-                setGenerationStatus((prev) => ({
-                  ...prev,
-                  status: "complete",
-                  currentFile: "",
-                }))
-              } else if (data.type === "error") {
-                setGenerationStatus((prev) => ({
-                  ...prev,
-                  status: "error",
-                  logs: [...prev.logs, `Error: ${data.message}`],
-                }))
-              }
-            } catch (e) {
-              console.error("Failed to parse SSE data:", e, "Line:", line)
-              setGenerationStatus((prev) => ({
-                ...prev,
-                logs: [...prev.logs, `Parse error: ${line}`],
-              }))
-            }
-          }
-        }
-      }
-    } catch (error: any) {
-      if (error.name !== "AbortError") {
-        console.error("Generation error:", error)
-        setGenerationStatus((prev) => ({
-          ...prev,
-          status: "error",
-          logs: [...prev.logs, `Error: ${error.message}`],
-        }))
-      }
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+      handleGenerate()
     }
   }
 
-  const updateFileContent = (path: string, content: string, isComplete: boolean) => {
-    setFiles((prev) => {
-      const updated = [...prev]
-      const pathParts = path.split("/")
-      let current = updated
-      let node: FileNode | undefined
-
-      // Navigate to the correct location in the tree
-      for (let i = 0; i < pathParts.length; i++) {
-        const part = pathParts[i]
-        if (!part) continue
-
-        node = current.find((n) => n.name === part)
-
-        if (!node) {
-          node = {
-            name: part,
-            path: pathParts.slice(0, i + 1).join("/"),
-            children: i < pathParts.length - 1 ? [] : undefined,
-            content: i === pathParts.length - 1 ? content : undefined,
-          }
-          current.push(node)
-        } else if (i === pathParts.length - 1) {
-          node.content = content
-        }
-
-        if (node.children) {
-          current = node.children
-        }
-      }
-
-      return updated
-    })
-
-    // Update current file if it's the one being edited
-    if (currentFile?.path === path) {
-      setCurrentFile((prev) => (prev ? { ...prev, content } : null))
-    }
-  }
-
-  const handleExport = async () => {
-    if (!sandboxId) return
-
-    try {
-      const response = await fetch(`/api/export?sandboxId=${sandboxId}`)
-      if (!response.ok) throw new Error("Export failed")
-
-      const blob = await response.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = "project.zip"
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error("Export failed:", error)
-    }
-  }
-
-  const isGenerating = generationStatus.status === "generating" || generationStatus.status === "building"
+  const examplePrompts = [
+    "Build a modern task management app with Next.js and TypeScript",
+    "Create a blog website with dark mode and responsive design",
+    "Build an e-commerce store with product catalog and shopping cart",
+    "Create a dashboard with charts and analytics",
+    "Build a portfolio website with animations and contact form",
+    "Create a weather app with location-based forecasts"
+  ]
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar files={files} currentFile={currentFile} onFileSelect={setCurrentFile} />
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 flex flex-col">
+      {/* Header */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
+          <div className="flex items-center gap-2">
+            <Code2 className="w-8 h-8 text-primary" />
+            <h1 className="text-2xl font-bold">AI Project Generator</h1>
+          </div>
+        </div>
+      </div>
 
-      <div className="flex-1 flex flex-col">
-        <div className="border-b p-4">
-          <div className="flex gap-4 items-start">
-            <div className="flex-1">
+      {/* Main Content */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <div className="w-full max-w-4xl space-y-8">
+          {/* Hero Section */}
+          <div className="text-center space-y-4">
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
+              <Sparkles className="w-4 h-4" />
+              Powered by AI
+            </div>
+            <h2 className="text-4xl md:text-6xl font-bold tracking-tight">
+              Build Projects with
+              <span className="text-primary"> AI Magic</span>
+            </h2>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Describe your project idea and watch as AI generates a complete Next.js application with modern design and best practices.
+            </p>
+          </div>
+
+          {/* Input Section */}
+          <Card className="p-6 shadow-lg">
+            <div className="space-y-4">
               <Textarea
-                placeholder="Describe the project you want to build..."
+                placeholder="Describe the project you want to build... (e.g., 'Build a modern task management app with user authentication and real-time updates')"
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
-                className="min-h-[100px] resize-none"
-                disabled={isGenerating}
+                onKeyDown={handleKeyPress}
+                className="min-h-[120px] text-lg resize-none border-2 focus:border-primary/50"
+                autoFocus
               />
-            </div>
-            <div className="flex gap-2">
-              <Button onClick={handleGenerate} disabled={isGenerating || !prompt.trim()} size="lg">
-                {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-                Generate
-              </Button>
-              {sandboxId && generationStatus.status === "complete" && (
-                <Button onClick={handleExport} variant="outline" size="lg">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
+              <div className="flex justify-between items-center">
+                <p className="text-sm text-muted-foreground">
+                  Press <kbd className="px-2 py-1 text-xs bg-muted rounded">Ctrl</kbd> + <kbd className="px-2 py-1 text-xs bg-muted rounded">Enter</kbd> to generate
+                </p>
+                <Button 
+                  onClick={handleGenerate} 
+                  disabled={!prompt.trim()} 
+                  size="lg"
+                  className="min-w-[120px]"
+                >
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Generate
                 </Button>
-              )}
+              </div>
+            </div>
+          </Card>
+
+          {/* Example Prompts */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-center">Try these examples:</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {examplePrompts.map((example, index) => (
+                <Card 
+                  key={index}
+                  className="p-4 cursor-pointer hover:shadow-md transition-all hover:border-primary/50 group"
+                  onClick={() => setPrompt(example)}
+                >
+                  <p className="text-sm group-hover:text-primary transition-colors">
+                    {example}
+                  </p>
+                </Card>
+              ))}
             </div>
           </div>
 
-          {generationStatus.status !== "idle" && (
-            <Card className="mt-4 p-3">
-              <div className="flex items-center gap-2 text-sm">
-                {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span className="font-medium">
-                  {generationStatus.status === "generating" && `Generating: ${generationStatus.currentFile}`}
-                  {generationStatus.status === "building" && "Building project..."}
-                  {generationStatus.status === "complete" && "Generation complete!"}
-                  {generationStatus.status === "error" && "Generation failed"}
-                </span>
+          {/* Features */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-8">
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                <Zap className="w-6 h-6 text-primary" />
               </div>
-              {generationStatus.logs.length > 0 && (
-                <div className="mt-2 max-h-20 overflow-y-auto text-xs text-muted-foreground">
-                  {generationStatus.logs.map((log, i) => (
-                    <div key={i}>{log}</div>
-                  ))}
-                </div>
-              )}
-            </Card>
-          )}
+              <h4 className="font-semibold">Lightning Fast</h4>
+              <p className="text-sm text-muted-foreground">
+                Generate complete projects in minutes, not hours
+              </p>
+            </div>
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                <Code2 className="w-6 h-6 text-primary" />
+              </div>
+              <h4 className="font-semibold">Modern Stack</h4>
+              <p className="text-sm text-muted-foreground">
+                Next.js 14, TypeScript, Tailwind CSS, and shadcn/ui
+              </p>
+            </div>
+            <div className="text-center space-y-3">
+              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-primary/10">
+                <Sparkles className="w-6 h-6 text-primary" />
+              </div>
+              <h4 className="font-semibold">Production Ready</h4>
+              <p className="text-sm text-muted-foreground">
+                Clean code with best practices and modern design
+              </p>
+            </div>
+          </div>
         </div>
+      </div>
 
-        <div className="flex-1 flex">
-          <Editor file={currentFile} />
-          <Preview sandboxId={sandboxId} />
+      {/* Footer */}
+      <div className="border-t bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="container mx-auto px-4 py-4">
+          <p className="text-center text-sm text-muted-foreground">
+            Built with Next.js and AI • Open Source
+          </p>
         </div>
       </div>
     </div>
