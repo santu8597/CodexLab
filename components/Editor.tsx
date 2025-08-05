@@ -16,8 +16,8 @@ import "prismjs/components/prism-css"
 import "prismjs/components/prism-json"
 import "prismjs/components/prism-markdown"
 
-// Import theme
-import "prismjs/themes/prism-tomorrow.css"
+// Import custom vibrant theme
+import "../styles/prism-vibrant.css"
 
 interface FileNode {
   name: string
@@ -373,13 +373,13 @@ export function Editor({ files, file, onFileSelect }: EditorProps) {
           <div className="text-xs text-muted-foreground">{file.path}</div>
         </div>
 
-        <div className="flex-1 overflow-auto bg-[#ffffff] min-h-0">
+        <div className="flex-1 overflow-auto bg-white min-h-0">
           <pre 
             className="p-4 text-sm leading-relaxed m-0 h-full w-full overflow-auto" 
             style={{ 
               fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-              background: '#2d3748',
-              color: '#e2e8f0',
+              background: '#ffffff',
+              color: '#2d3748',
               minHeight: '100%',
               whiteSpace: 'pre-wrap',
               wordWrap: 'break-word'

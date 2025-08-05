@@ -1,0 +1,229 @@
+/* Custom Vibrant Light Theme */
+code[class*="language-"],
+pre[class*="language-"] {
+  color: #2d3748;
+  background: none;
+  text-shadow: none;
+  font-family: 'Fira Code', 'Cascadia Code', Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+  font-size: 1em;
+  text-align: left;
+  white-space: pre;
+  word-spacing: normal;
+  word-break: normal;
+  word-wrap: normal;
+  line-height: 1.5;
+  tab-size: 4;
+  hyphens: none;
+}
+
+/* Code blocks */
+pre[class*="language-"] {
+  padding: 1em;
+  margin: 0.5em 0;
+  overflow: auto;
+  border-radius: 0.3em;
+}
+
+:not(pre) > code[class*="language-"],
+pre[class*="language-"] {
+  background: #ffffff;
+}
+
+/* Inline code */
+:not(pre) > code[class*="language-"] {
+  padding: 0.1em;
+  border-radius: 0.3em;
+  white-space: normal;
+}
+
+/* Token colors - Vibrant for light background */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #22863a; /* Deep green for comments */
+  font-style: italic;
+}
+
+.token.punctuation {
+  color: #24292e; /* Dark gray for punctuation */
+}
+
+.token.property,
+.token.tag,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #d73a49; /* Bright red */
+}
+
+.token.boolean,
+.token.number {
+  color: #005cc5; /* Bright blue */
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.builtin,
+.token.inserted {
+  color: #032f62; /* Deep blue for strings */
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string,
+.token.variable {
+  color: #e36209; /* Bright orange */
+}
+
+.token.atrule,
+.token.attr-value,
+.token.function,
+.token.class-name {
+  color: #6f42c1; /* Bright purple */
+}
+
+.token.keyword {
+  color: #d73a49; /* Bright red for keywords */
+  font-weight: bold;
+}
+
+.token.regex,
+.token.important {
+  color: #b31d28; /* Dark red */
+}
+
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
+}
+
+.token.entity {
+  cursor: help;
+}
+
+/* TypeScript/JavaScript specific */
+.token.template-string {
+  color: #032f62; /* Deep blue for template strings */
+}
+
+.token.template-punctuation {
+  color: #d73a49; /* Red for template punctuation */
+}
+
+/* JSX specific */
+.language-jsx .token.punctuation,
+.language-tsx .token.punctuation {
+  color: #24292e;
+}
+
+.language-jsx .token.tag,
+.language-tsx .token.tag {
+  color: #22863a; /* Green for JSX tags */
+}
+
+.language-jsx .token.class-name,
+.language-tsx .token.class-name {
+  color: #6f42c1; /* Purple for React components */
+}
+
+.language-jsx .token.script-punctuation,
+.language-tsx .token.script-punctuation {
+  color: #d73a49;
+}
+
+.language-jsx .token.attr-name,
+.language-tsx .token.attr-name {
+  color: #005cc5; /* Blue for JSX attributes */
+}
+
+.language-jsx .token.attr-value,
+.language-tsx .token.attr-value {
+  color: #032f62; /* Deep blue for attribute values */
+}
+
+/* CSS specific */
+.language-css .token.selector {
+  color: #22863a; /* Green for CSS selectors */
+}
+
+.language-css .token.property {
+  color: #005cc5; /* Blue for CSS properties */
+}
+
+.language-css .token.string,
+.language-css .token.url {
+  color: #032f62; /* Deep blue for CSS strings */
+}
+
+.language-css .token.at-rule {
+  color: #d73a49; /* Red for @rules */
+}
+
+/* JSON specific */
+.language-json .token.property {
+  color: #005cc5; /* Blue for JSON properties */
+}
+
+.language-json .token.string {
+  color: #032f62; /* Deep blue for JSON strings */
+}
+
+.language-json .token.number {
+  color: #005cc5; /* Blue for JSON numbers */
+}
+
+.language-json .token.boolean {
+  color: #d73a49; /* Red for JSON booleans */
+}
+
+.language-json .token.null {
+  color: #6f42c1; /* Purple for null */
+}
+
+/* Make line numbers more visible if used */
+.line-numbers .line-numbers-rows {
+  border-right: 1px solid #e1e4e8;
+}
+
+.line-numbers-rows > span:before {
+  color: #586069;
+}
+
+/* Selection */
+pre[class*="language-"]::-moz-selection,
+pre[class*="language-"] ::-moz-selection,
+code[class*="language-"]::-moz-selection,
+code[class*="language-"] ::-moz-selection {
+  text-shadow: none;
+  background: #c8e1ff;
+}
+
+pre[class*="language-"]::selection,
+pre[class*="language-"] ::selection,
+code[class*="language-"]::selection,
+code[class*="language-"] ::selection {
+  text-shadow: none;
+  background: #c8e1ff;
+}
+
+/* Additional vibrant colors for better distinction */
+.token.namespace {
+  color: #6f42c1;
+}
+
+.token.interpolation {
+  color: #e36209;
+}
+
+.token.interpolation-punctuation {
+  color: #d73a49;
+}
