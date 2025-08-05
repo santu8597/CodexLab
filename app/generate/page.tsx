@@ -2,11 +2,14 @@
 
 import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { Sidebar } from "@/components/Sidebar"
 import { Editor } from "@/components/Editor"
 import { Preview } from "@/components/Preview"
 import { Button } from "@/components/ui/button"
-import { Loader2, Download, ArrowLeft, RefreshCw } from "lucide-react"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Label } from "@/components/ui/label"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
+import { Loader2, Download, ArrowLeft, RefreshCw, Code, Eye, FileText } from "lucide-react"
+import { Card } from "@/components/ui/card"
 
 interface FileNode {
   name: string
@@ -25,7 +28,7 @@ function GenerateContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const prompt = searchParams?.get("prompt") || ""
-  
+
   const [files, setFiles] = useState<FileNode[]>([])
   const [currentFile, setCurrentFile] = useState<FileNode | null>(null)
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>({
@@ -35,6 +38,7 @@ function GenerateContent() {
   })
   const [sandboxId, setSandboxId] = useState<string | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
+  const [viewMode, setViewMode] = useState<"code" | "preview">("code")
   const abortControllerRef = useRef<AbortController | null>(null)
 
   // Auto-start generation when the page loads
@@ -216,121 +220,175 @@ function GenerateContent() {
   }
 
   const isGenerating = generationStatus.status === "generating" || generationStatus.status === "building"
+  const isComplete = generationStatus.status === "complete"
 
   return (
-    <div className="flex h-screen bg-background">
-      {/* Left Panel - Chat Interface */}
-      <div className="w-80 border-r bg-muted/30 flex flex-col">
-        {/* Header */}
-        <div className="border-b p-4">
-          <div className="flex items-center gap-3 mb-3">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.push("/")}
-              className="gap-2"
-            >
+    <div className="flex flex-col h-screen bg-background">
+      {/* Header */}
+      <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" onClick={() => router.push("/")} className="gap-2">
               <ArrowLeft className="w-4 h-4" />
               Back
             </Button>
-            <h1 className="font-semibold">Chat</h1>
-          </div>
-        </div>
-
-        {/* Chat Content */}
-        <div className="flex-1 p-4 overflow-auto">
-          {/* Project Description */}
-          <div className="mb-6">
-            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 mb-4">
-              <div className="text-sm font-medium mb-2">Project Request:</div>
-              <div className="text-sm text-muted-foreground">{prompt}</div>
-            </div>
+            <div className="h-4 w-px bg-border" />
+            <h1 className="font-semibold">AI Project Generator</h1>
           </div>
 
-          {/* Status Updates */}
-          {generationStatus.status !== "idle" && (
-            <div className="space-y-3">
-              <div className="bg-background rounded-lg p-3 border">
-                <div className="flex items-center gap-2 text-sm mb-2">
-                  {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span className="font-medium">
-                    {generationStatus.status === "generating" && "Generating Project"}
-                    {generationStatus.status === "building" && "Building Project"}
-                    {generationStatus.status === "complete" && "Project Complete"}
-                    {generationStatus.status === "error" && "Generation Failed"}
-                  </span>
-                </div>
-                
-                {generationStatus.currentFile && (
-                  <div className="text-xs text-muted-foreground mb-2">
-                    Current: {generationStatus.currentFile}
-                  </div>
-                )}
-
-                {generationStatus.logs.length > 0 && (
-                  <div className="text-xs text-muted-foreground space-y-1 max-h-32 overflow-y-auto">
-                    {generationStatus.logs.slice(-10).map((log, i) => (
-                      <div key={i} className="font-mono">{log}</div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="border-t p-4">
-          <div className="flex gap-2">
-            <Button 
-              onClick={handleRegenerate} 
-              disabled={isGenerating} 
-              variant="outline"
-              size="sm"
-              className="flex-1"
+          <div className="flex items-center gap-3">
+            {/* View Mode Toggle */}
+            <RadioGroup
+              value={viewMode}
+              onValueChange={(value) => setViewMode(value as "code" | "preview")}
+              className="flex items-center gap-1"
             >
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Regenerate
-            </Button>
-            {sandboxId && generationStatus.status === "complete" && (
-              <Button onClick={handleExport} size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Export
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Middle Panel - File Tree */}
-      <div className="w-64 border-r">
-        <Sidebar files={files} currentFile={currentFile} onFileSelect={setCurrentFile} />
-      </div>
-
-      {/* Right Panel - Code Editor and Preview */}
-      <div className="flex-1 flex">
-        <Editor file={currentFile} />
-        {generationStatus.status === "complete" && (
-          <Preview sandboxId={sandboxId} previewUrl={previewUrl} />
-        )}
-        {generationStatus.status !== "complete" && (
-          <div className="flex-1 border-l flex items-center justify-center bg-muted/20">
-            <div className="text-center text-muted-foreground">
-              <div className="text-lg font-medium mb-2">Preview</div>
-              <div className="text-sm">
-                {generationStatus.status === "idle" && "Generate a project to see the preview"}
-                {generationStatus.status === "generating" && "Generating project files..."}
-                {generationStatus.status === "building" && "Building project..."}
-                {generationStatus.status === "error" && "Generation failed"}
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="code" id="code" className="sr-only" />
+                <Label
+                  htmlFor="code"
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
+                    viewMode === "code" ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  }`}
+                >
+                  <Code className="w-4 h-4" />
+                  Code
+                </Label>
               </div>
-              {isGenerating && (
-                <div className="flex items-center justify-center mt-4">
-                  <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="preview" id="preview" className="sr-only" />
+                <Label
+                  htmlFor="preview"
+                  className={`flex items-center gap-2 px-3 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
+                    viewMode === "preview" ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+                  } ${!isComplete ? "opacity-50 cursor-not-allowed" : ""}`}
+                >
+                  <Eye className="w-4 h-4" />
+                  Preview
+                </Label>
+              </div>
+            </RadioGroup>
+
+            <div className="h-4 w-px bg-border" />
+
+            <div className="flex items-center gap-2">
+              <Button onClick={handleRegenerate} disabled={isGenerating} variant="outline" size="sm">
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Regenerate
+              </Button>
+              {sandboxId && isComplete && (
+                <Button onClick={handleExport} size="sm">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export
+                </Button>
               )}
             </div>
           </div>
-        )}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-hidden">
+        <ResizablePanelGroup direction="horizontal" className="h-full">
+          {/* Left Panel - Generation Status */}
+          <ResizablePanel defaultSize={30} minSize={25} maxSize={45}>
+            <div className="h-full flex flex-col bg-muted/30">
+              {/* Status Header */}
+              <div className="border-b p-4">
+                <h2 className="font-semibold flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Generation Status
+                </h2>
+              </div>
+
+              {/* Status Content */}
+              <div className="flex-1 p-4 overflow-auto space-y-4">
+                {/* Project Description */}
+                <Card className="p-4">
+                  <div className="text-sm font-medium mb-2">Project Request:</div>
+                  <div className="text-sm text-muted-foreground">{prompt}</div>
+                </Card>
+
+                {/* Current Status */}
+                {generationStatus.status !== "idle" && (
+                  <Card className="p-4">
+                    <div className="flex items-center gap-2 text-sm mb-3">
+                      {isGenerating && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+                      <span className="font-medium">
+                        {generationStatus.status === "generating" && "Generating Project"}
+                        {generationStatus.status === "building" && "Building Project"}
+                        {generationStatus.status === "complete" && "✅ Project Complete"}
+                        {generationStatus.status === "error" && "❌ Generation Failed"}
+                      </span>
+                    </div>
+
+                    {generationStatus.currentFile && (
+                      <div className="text-xs text-muted-foreground mb-3 p-2 bg-muted/50 rounded">
+                        <div className="font-medium mb-1">Current File:</div>
+                        <div className="font-mono">{generationStatus.currentFile}</div>
+                      </div>
+                    )}
+
+                    {generationStatus.logs.length > 0 && (
+                      <div className="space-y-1">
+                        <div className="text-xs font-medium text-muted-foreground">Logs:</div>
+                        <div className="text-xs text-muted-foreground space-y-1 max-h-40 overflow-y-auto bg-muted/50 rounded p-2">
+                          {generationStatus.logs.slice(-15).map((log, i) => (
+                            <div key={i} className="font-mono text-xs">
+                              {log}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </Card>
+                )}
+
+                {/* File Count */}
+                {files.length > 0 && (
+                  <Card className="p-4">
+                    <div className="text-sm font-medium mb-2">Generated Files:</div>
+                    <div className="text-2xl font-bold text-primary">{files.length}</div>
+                    <div className="text-xs text-muted-foreground">files created</div>
+                  </Card>
+                )}
+              </div>
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle withHandle />
+
+          {/* Right Panel - Code Editor with Sidebar or Preview */}
+          <ResizablePanel defaultSize={70} minSize={55}>
+            {viewMode === "code" ? (
+              <Editor files={files} file={currentFile} onFileSelect={setCurrentFile} />
+            ) : (
+              <div className="h-full">
+                {isComplete ? (
+                  <Preview sandboxId={sandboxId} previewUrl={previewUrl} />
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-muted/20">
+                    <div className="text-center text-muted-foreground">
+                      <Eye className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                      <div className="text-lg font-medium mb-2">Preview Not Available</div>
+                      <div className="text-sm">
+                        {generationStatus.status === "idle" && "Generate a project to see the preview"}
+                        {generationStatus.status === "generating" && "Generating project files..."}
+                        {generationStatus.status === "building" && "Building project..."}
+                        {generationStatus.status === "error" && "Generation failed"}
+                      </div>
+                      {isGenerating && (
+                        <div className="flex items-center justify-center mt-4">
+                          <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </div>
     </div>
   )
@@ -338,14 +396,16 @@ function GenerateContent() {
 
 export default function GeneratePage() {
   return (
-    <Suspense fallback={
-      <div className="flex h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Loading generator...</p>
+    <Suspense
+      fallback={
+        <div className="flex h-screen items-center justify-center bg-background">
+          <div className="flex flex-col items-center space-y-4">
+            <Loader2 className="w-8 h-8 animate-spin text-primary" />
+            <p className="text-sm text-muted-foreground">Loading generator...</p>
+          </div>
         </div>
-      </div>
-    }>
+      }
+    >
       <GenerateContent />
     </Suspense>
   )

@@ -46,7 +46,7 @@ export class ProjectOrchestrator {
 
     this.sandbox = await Sandbox.create({
       apiKey: process.env.E2B_API_KEY,
-      timeoutMs: 60000,
+      timeoutMs: 900000,
     })
 
     const sandboxId = this.sandbox.sandboxId
@@ -132,7 +132,7 @@ Focus on creating a functional, complete project structure.`,
           "app/globals.css",
           "lib/utils.ts",
         ]
-
+        
         // Add specific files based on project type
         const description = this.context.description.toLowerCase()
         if (description.includes("dashboard") || description.includes("admin")) {
@@ -189,7 +189,7 @@ Include:
 - lucide-react for icons
 - class-variance-authority and clsx for styling
 - Any other dependencies needed for: ${this.context.description}
-
+- always use next dev -H 0.0.0.0 -p 3000
 Return only the JSON content, properly formatted.`
     } else if (filePath === "next.config.js") {
       filePrompt = `Create a next.config.js for: "${this.context.description}"
@@ -334,7 +334,7 @@ Return only the file content, no explanations.`
     })
 
     try {
-      const result = await this.sandbox.commands.run(command)
+      const result = await this.sandbox.commands.run(command,{ timeoutMs: 0 })
 
       if (result.stdout) {
         this.onUpdate({
