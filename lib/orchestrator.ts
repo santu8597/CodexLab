@@ -149,7 +149,7 @@ Requirements:
 - Create all necessary pages, components, and utilities
 - Include proper package.json with all dependencies
 - Break UI into reusable components and make sure to import them correctly
-- Write the backend code in api folder
+- Write the backend code in app/api folder
 Return ONLY a JSON array of file paths in order of importance:
 Example format: ["package.json", "next.config.js", "tailwind.config.js", "tsconfig.json", "app/layout.tsx", "app/page.tsx", "app/globals.css", "components/ui/button.tsx", "lib/utils.ts"]
 
@@ -331,7 +331,7 @@ Return only the file content, no explanations.`
       })
 
       const result = await streamText({
-        model: google("gemini-2.5-flash"),
+        model: google("gemini-2.0-flash"),
         prompt: filePrompt,
       })
 

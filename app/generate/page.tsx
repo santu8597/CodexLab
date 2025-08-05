@@ -4,9 +4,7 @@ import { useState, useRef, useEffect, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Sidebar } from "@/components/Sidebar"
 import { Editor } from "@/components/Editor"
-import { Preview } from "@/components/Preview"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import { Loader2, Download, ArrowLeft, RefreshCw } from "lucide-react"
 
 interface FileNode {
@@ -216,80 +214,97 @@ function GenerateContent() {
 
   return (
     <div className="flex h-screen bg-background">
-      <Sidebar files={files} currentFile={currentFile} onFileSelect={setCurrentFile} />
-
-      <div className="flex-1 flex flex-col">
+      {/* Left Panel - Chat Interface */}
+      <div className="w-80 border-r bg-muted/30 flex flex-col">
         {/* Header */}
         <div className="border-b p-4">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push("/")}
-                className="gap-2"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Home
-              </Button>
-              <div className="h-4 w-px bg-border" />
-              <h1 className="font-semibold text-lg">Project Generator</h1>
-            </div>
-            <div className="flex gap-2">
-              <Button 
-                onClick={handleRegenerate} 
-                disabled={isGenerating} 
-                variant="outline"
-                size="sm"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                Regenerate
-              </Button>
-              {sandboxId && generationStatus.status === "complete" && (
-                <Button onClick={handleExport} variant="outline" size="sm">
-                  <Download className="w-4 h-4 mr-2" />
-                  Export
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center gap-3 mb-3">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/")}
+              className="gap-2"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back
+            </Button>
+            <h1 className="font-semibold">Chat</h1>
           </div>
+        </div>
 
+        {/* Chat Content */}
+        <div className="flex-1 p-4 overflow-auto">
           {/* Project Description */}
-          <div className="mb-4">
-            <p className="text-sm text-muted-foreground mb-2">Project Description:</p>
-            <div className="bg-muted/50 rounded-lg p-3">
-              <p className="text-sm">{prompt}</p>
+          <div className="mb-6">
+            <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 mb-4">
+              <div className="text-sm font-medium mb-2">Project Request:</div>
+              <div className="text-sm text-muted-foreground">{prompt}</div>
             </div>
           </div>
 
-          {/* Status Card */}
+          {/* Status Updates */}
           {generationStatus.status !== "idle" && (
-            <Card className="p-3">
-              <div className="flex items-center gap-2 text-sm">
-                {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span className="font-medium">
-                  {generationStatus.status === "generating" && `Generating: ${generationStatus.currentFile}`}
-                  {generationStatus.status === "building" && "Building project..."}
-                  {generationStatus.status === "complete" && "Generation complete!"}
-                  {generationStatus.status === "error" && "Generation failed"}
-                </span>
-              </div>
-              {generationStatus.logs.length > 0 && (
-                <div className="mt-2 max-h-20 overflow-y-auto text-xs text-muted-foreground">
-                  {generationStatus.logs.slice(-5).map((log, i) => (
-                    <div key={i}>{log}</div>
-                  ))}
+            <div className="space-y-3">
+              <div className="bg-background rounded-lg p-3 border">
+                <div className="flex items-center gap-2 text-sm mb-2">
+                  {isGenerating && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span className="font-medium">
+                    {generationStatus.status === "generating" && "Generating Project"}
+                    {generationStatus.status === "building" && "Building Project"}
+                    {generationStatus.status === "complete" && "Project Complete"}
+                    {generationStatus.status === "error" && "Generation Failed"}
+                  </span>
                 </div>
-              )}
-            </Card>
+                
+                {generationStatus.currentFile && (
+                  <div className="text-xs text-muted-foreground mb-2">
+                    Current: {generationStatus.currentFile}
+                  </div>
+                )}
+
+                {generationStatus.logs.length > 0 && (
+                  <div className="text-xs text-muted-foreground space-y-1 max-h-32 overflow-y-auto">
+                    {generationStatus.logs.slice(-10).map((log, i) => (
+                      <div key={i} className="font-mono">{log}</div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
         </div>
 
-        {/* Code View */}
-        <div className="flex-1 flex">
-          <Editor file={currentFile} />
-          <Preview sandboxId={sandboxId} />
+        {/* Actions */}
+        <div className="border-t p-4">
+          <div className="flex gap-2">
+            <Button 
+              onClick={handleRegenerate} 
+              disabled={isGenerating} 
+              variant="outline"
+              size="sm"
+              className="flex-1"
+            >
+              <RefreshCw className="w-4 h-4 mr-2" />
+              Regenerate
+            </Button>
+            {sandboxId && generationStatus.status === "complete" && (
+              <Button onClick={handleExport} size="sm">
+                <Download className="w-4 h-4 mr-2" />
+                Export
+              </Button>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Middle Panel - File Tree */}
+      <div className="w-64 border-r">
+        <Sidebar files={files} currentFile={currentFile} onFileSelect={setCurrentFile} />
+      </div>
+
+      {/* Right Panel - Code Editor */}
+      <div className="flex-1 flex">
+        <Editor file={currentFile} />
       </div>
     </div>
   )

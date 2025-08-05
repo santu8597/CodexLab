@@ -71,7 +71,7 @@ export function Editor({ file }: EditorProps) {
 
   if (!file) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-muted/20">
+      <div className="flex-1 flex items-center justify-center bg-muted/20 h-full max-h-screen min-h-0">
         <div className="text-center text-muted-foreground">
           <div className="text-lg font-medium mb-2">No file selected</div>
           <div className="text-sm">Select a file from the sidebar to view its content</div>
@@ -82,7 +82,7 @@ export function Editor({ file }: EditorProps) {
 
   if (!file.content) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-muted/20">
+      <div className="flex-1 flex items-center justify-center bg-muted/20 h-full max-h-screen min-h-0">
         <div className="text-center text-muted-foreground">
           <div className="text-lg font-medium mb-2">File not ready</div>
           <div className="text-sm">This file is being generated...</div>
@@ -92,8 +92,8 @@ export function Editor({ file }: EditorProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col">
-      <div className="border-b p-3 bg-muted/30">
+    <div className="flex-1 flex flex-col h-full max-h-screen">
+      <div className="border-b p-3 bg-muted/30 flex-shrink-0">
         <div className="flex items-center gap-2">
           <span className="font-medium text-sm">{file.name}</span>
           <Badge variant="secondary" className="text-xs">
@@ -103,16 +103,27 @@ export function Editor({ file }: EditorProps) {
         <div className="text-xs text-muted-foreground mt-1">{file.path}</div>
       </div>
 
-      <div className="flex-1 overflow-auto bg-[#2d3748]">
-        <pre className="p-4 text-sm leading-relaxed m-0 min-h-full" style={{ 
-          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-          background: '#2d3748',
-          color: '#e2e8f0'
-        }}>
+      <div className="flex-1 overflow-auto bg-[#ffffff] min-h-0">
+        <pre 
+          className="p-4 text-sm leading-relaxed m-0 h-full w-full overflow-auto" 
+          style={{ 
+            fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+            background: '#2d3748',
+            color: '#e2e8f0',
+            minHeight: '100%',
+            whiteSpace: 'pre-wrap',
+            wordWrap: 'break-word'
+          }}
+        >
           <code 
             ref={codeRef}
             className={`language-${getLanguageFromPath(file.path)}`}
-            style={{ background: 'transparent' }}
+            style={{ 
+              background: 'transparent',
+              display: 'block',
+              whiteSpace: 'pre-wrap',
+              wordWrap: 'break-word'
+            }}
           >
             {displayContent}
           </code>
