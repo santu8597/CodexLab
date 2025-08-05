@@ -34,6 +34,42 @@ export class ProjectOrchestrator {
     return this.previewUrl
   }
 
+  async waitForServer(port: number, maxRetries: number = 10): Promise<boolean> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        if (this.sandbox) {
+          const host = await this.sandbox.getHost(port)
+          this.onUpdate({
+            type: "log",
+            message: `✓ Server is ready at https://${host}`,
+          })
+          return true
+        }
+      } catch (error) {
+        this.onUpdate({
+          type: "log",
+          message: `Waiting for server on port ${port}... (${i + 1}/${maxRetries})`,
+        })
+        
+        // Check if there are any processes running
+        if (this.sandbox) {
+          try {
+            const result = await this.sandbox.commands.run("ps aux | grep node", { timeoutMs: 5000 })
+            this.onUpdate({
+              type: "log",
+              message: `Process check: ${result.stdout}`,
+            })
+          } catch (e) {
+            // Ignore process check errors
+          }
+        }
+        
+        await new Promise(resolve => setTimeout(resolve, 3000))
+      }
+    }
+    return false
+  }
+
   async createSandbox(): Promise<string> {
     this.onUpdate({
       type: "log",
@@ -44,24 +80,33 @@ export class ProjectOrchestrator {
       throw new Error("E2B_API_KEY environment variable is not set")
     }
 
-    this.sandbox = await Sandbox.create({
-      apiKey: process.env.E2B_API_KEY,
-      timeoutMs: 900000,
-    })
+    try {
+      this.sandbox = await Sandbox.create({
+        apiKey: process.env.E2B_API_KEY,
+        timeoutMs: 900000,
+      })
 
-    const sandboxId = this.sandbox.sandboxId
+      const sandboxId = this.sandbox.sandboxId
 
-    this.onUpdate({
-      type: "sandbox_created",
-      sandboxId: sandboxId,
-    })
+      this.onUpdate({
+        type: "sandbox_created",
+        sandboxId: sandboxId,
+      })
 
-    this.onUpdate({
-      type: "log",
-      message: `E2B sandbox created: ${sandboxId}`,
-    })
+      this.onUpdate({
+        type: "log",
+        message: `✓ E2B sandbox created successfully: ${sandboxId}`,
+      })
 
-    return sandboxId
+      return sandboxId
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      this.onUpdate({
+        type: "log",
+        message: `❌ Failed to create E2B sandbox: ${message}`,
+      })
+      throw new Error(`Failed to create E2B sandbox: ${message}`)
+    }
   }
 
   async generateProjectPlan(): Promise<string[]> {
@@ -189,7 +234,8 @@ Include:
 - lucide-react for icons
 - class-variance-authority and clsx for styling
 - Any other dependencies needed for: ${this.context.description}
-- always use next dev -H 0.0.0.0 -p 3000
+- The dev script MUST be: "dev": "next dev -H 0.0.0.0 -p 3000"
+
 Return only the JSON content, properly formatted.`
     } else if (filePath === "next.config.js") {
       filePrompt = `Create a next.config.js for: "${this.context.description}"
@@ -372,25 +418,95 @@ Return only the file content, no explanations.`
 
     try {
       // Install dependencies
+      this.onUpdate({
+        type: "log",
+        message: "Installing dependencies...",
+      })
       await this.runCommand("npm install")
 
       // Start the dev server in background
-      await this.runCommand("nohup npm run dev > /tmp/next.log 2>&1 &")
-
-      // Get the preview URL
-      if (this.sandbox) {
-        const host = await this.sandbox.getHost(3000)
-        this.previewUrl = `https://${host}`
-        
-        this.onUpdate({
-          type: "preview_url",
-          url: this.previewUrl,
-        })
-
+      this.onUpdate({
+        type: "log",
+        message: "Starting development server...",
+      })
+      
+      // Check if package.json exists and has the right dev script
+      try {
+        const packageJson = await this.sandbox!.files.read("package.json")
         this.onUpdate({
           type: "log",
-          message: `✓ Preview URL: ${this.previewUrl}`,
+          message: "Package.json found - checking dev script...",
         })
+        
+        const pkg = JSON.parse(packageJson)
+        if (pkg.scripts && pkg.scripts.dev) {
+          this.onUpdate({
+            type: "log",
+            message: `Dev script: ${pkg.scripts.dev}`,
+          })
+        }
+      } catch (error) {
+        this.onUpdate({
+          type: "log",
+          message: `Could not read package.json: ${error}`,
+        })
+      }
+      
+      // Start dev server in background using screen or nohup
+      this.sandbox!.commands.run("nohup npm run dev > /tmp/next.log 2>&1 & echo $! > /tmp/dev.pid", { timeoutMs: 10000 }).catch((error) => {
+        this.onUpdate({
+          type: "log",
+          message: `Dev server command completed: ${error}`,
+        })
+      })
+
+      // Wait for the server to be ready
+      this.onUpdate({
+        type: "log",
+        message: "Waiting for development server to start...",
+      })
+      
+      const serverReady = await this.waitForServer(3000, 15)
+      
+      if (serverReady && this.sandbox) {
+        try {
+          const host = await this.sandbox.getHost(3000)
+          this.previewUrl = `https://${host}`
+          
+          this.onUpdate({
+            type: "preview_url",
+            url: this.previewUrl,
+          })
+
+          this.onUpdate({
+            type: "log",
+            message: `✓ Preview URL: ${this.previewUrl}`,
+          })
+        } catch (error) {
+          this.onUpdate({
+            type: "log",
+            message: `Could not get preview URL: ${error}`,
+          })
+        }
+      } else {
+        this.onUpdate({
+          type: "log",
+          message: "⚠️ Development server did not start in time - checking logs...",
+        })
+        
+        // Try to read the dev server logs
+        try {
+          const logs = await this.sandbox!.files.read("/tmp/next.log")
+          this.onUpdate({
+            type: "log",
+            message: `Dev server logs: ${logs}`,
+          })
+        } catch (error) {
+          this.onUpdate({
+            type: "log",
+            message: `Could not read dev server logs: ${error}`,
+          })
+        }
       }
 
       this.onUpdate({
@@ -479,10 +595,29 @@ Return only the file content, no explanations.`
       })
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
+      
+      // Provide more specific error messages
+      let userFriendlyMessage = message;
+      if (message.includes("wasn't found") || message.includes("not found")) {
+        userFriendlyMessage = "The sandbox has expired or was terminated. Please try generating the project again.";
+      } else if (message.includes("timeout") || message.includes("timed out")) {
+        userFriendlyMessage = "The operation timed out. Please check your internet connection and try again.";
+      } else if (message.includes("API key") || message.includes("authentication")) {
+        userFriendlyMessage = "Authentication failed. Please check your E2B API key configuration.";
+      } else if (message.includes("quota") || message.includes("limit")) {
+        userFriendlyMessage = "API quota exceeded. Please check your E2B account limits.";
+      }
+      
       this.onUpdate({
         type: "error",
-        message,
+        message: userFriendlyMessage,
       })
+      
+      this.onUpdate({
+        type: "log",
+        message: `❌ Generation failed: ${message}`,
+      })
+      
       throw error
     }
   }
