@@ -1,7 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useRef } from "react"
 import { Badge } from "@/components/ui/badge"
+import Prism from "prismjs"
+
+// Import language definitions
+import "prismjs/components/prism-typescript"
+import "prismjs/components/prism-javascript"
+import "prismjs/components/prism-jsx"
+import "prismjs/components/prism-tsx"
+import "prismjs/components/prism-css"
+import "prismjs/components/prism-json"
+import "prismjs/components/prism-markdown"
+
+// Import theme
+import "prismjs/themes/prism-tomorrow.css"
 
 interface FileNode {
   name: string
@@ -16,6 +29,7 @@ interface EditorProps {
 
 export function Editor({ file }: EditorProps) {
   const [displayContent, setDisplayContent] = useState("")
+  const codeRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
     if (file?.content) {
@@ -25,13 +39,21 @@ export function Editor({ file }: EditorProps) {
     }
   }, [file])
 
+  useEffect(() => {
+    if (codeRef.current && displayContent) {
+      Prism.highlightElement(codeRef.current)
+    }
+  }, [displayContent, file?.path])
+
   const getLanguageFromPath = (path: string): string => {
     const ext = path.split(".").pop()?.toLowerCase()
     switch (ext) {
       case "tsx":
+        return "tsx"
       case "ts":
         return "typescript"
       case "jsx":
+        return "jsx"
       case "js":
         return "javascript"
       case "css":
@@ -81,9 +103,19 @@ export function Editor({ file }: EditorProps) {
         <div className="text-xs text-muted-foreground mt-1">{file.path}</div>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <pre className="p-4 text-sm font-mono leading-relaxed">
-          <code className="language-typescript">{displayContent}</code>
+      <div className="flex-1 overflow-auto bg-[#2d3748]">
+        <pre className="p-4 text-sm leading-relaxed m-0 min-h-full" style={{ 
+          fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+          background: '#2d3748',
+          color: '#e2e8f0'
+        }}>
+          <code 
+            ref={codeRef}
+            className={`language-${getLanguageFromPath(file.path)}`}
+            style={{ background: 'transparent' }}
+          >
+            {displayContent}
+          </code>
         </pre>
       </div>
     </div>

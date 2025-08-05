@@ -1,0 +1,183 @@
+/* Custom Prism.js theme for better integration */
+.token.comment,
+.token.prolog,
+.token.doctype,
+.token.cdata {
+  color: #8e8e93;
+  font-style: italic;
+}
+
+.token.punctuation {
+  color: #c9c9c9;
+}
+
+.token.namespace {
+  opacity: 0.7;
+}
+
+.token.property,
+.token.tag,
+.token.boolean,
+.token.number,
+.token.function-name,
+.token.constant,
+.token.symbol,
+.token.deleted {
+  color: #f97583;
+}
+
+.token.selector,
+.token.attr-name,
+.token.string,
+.token.char,
+.token.function,
+.token.builtin,
+.token.inserted {
+  color: #9ecbff;
+}
+
+.token.operator,
+.token.entity,
+.token.url,
+.language-css .token.string,
+.style .token.string,
+.token.variable {
+  color: #79b8ff;
+}
+
+.token.atrule,
+.token.attr-value,
+.token.keyword,
+.token.class-name {
+  color: #b392f0;
+}
+
+.token.function {
+  color: #b392f0;
+}
+
+.token.regex,
+.token.important {
+  color: #ffab70;
+}
+
+.token.important,
+.token.bold {
+  font-weight: bold;
+}
+
+.token.italic {
+  font-style: italic;
+}
+
+.token.entity {
+  cursor: help;
+}
+
+/* JSX/TSX specific tokens */
+.token.tag .token.punctuation {
+  color: #f97583;
+}
+
+.token.tag .token.script-punctuation {
+  color: #c9c9c9;
+}
+
+.token.attr-name {
+  color: #b392f0;
+}
+
+.token.attr-value {
+  color: #9ecbff;
+}
+
+.token.attr-value .token.punctuation {
+  color: #9ecbff;
+}
+
+/* TypeScript specific */
+.token.keyword.module,
+.token.keyword.namespace,
+.token.keyword.import,
+.token.keyword.export {
+  color: #f97583;
+}
+
+.token.builtin.class-name {
+  color: #79b8ff;
+}
+
+/* JSON specific */
+.language-json .token.property {
+  color: #79b8ff;
+}
+
+.language-json .token.string {
+  color: #9ecbff;
+}
+
+.language-json .token.number {
+  color: #79b8ff;
+}
+
+.language-json .token.boolean {
+  color: #f97583;
+}
+
+.language-json .token.null {
+  color: #f97583;
+}
+
+/* CSS specific */
+.language-css .token.selector {
+  color: #b392f0;
+}
+
+.language-css .token.property {
+  color: #79b8ff;
+}
+
+.language-css .token.function {
+  color: #b392f0;
+}
+
+/* Line numbers and highlighting */
+.line-highlight {
+  background: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(to right, rgba(255, 255, 255, 0.1) 70%, rgba(255, 255, 255, 0));
+}
+
+/* Make sure the code block fits well in the container */
+pre[class*="language-"] {
+  margin: 0;
+  padding: 1rem;
+  overflow: auto;
+  background: transparent !important;
+}
+
+code[class*="language-"] {
+  background: transparent;
+  text-shadow: none;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+/* Scrollbar styling for code blocks */
+pre[class*="language-"]::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+pre[class*="language-"]::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+pre[class*="language-"]::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 4px;
+}
+
+pre[class*="language-"]::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
