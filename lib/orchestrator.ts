@@ -453,7 +453,7 @@ Return only the file content, no explanations.`
       }
       
       // Start dev server in background using screen or nohup
-      this.sandbox!.commands.run("nohup npm run dev > /tmp/next.log 2>&1 & echo $! > /tmp/dev.pid", { timeoutMs: 10000 }).catch((error) => {
+      this.sandbox!.commands.run("nohup npm run dev > /tmp/next.log 2>&1 &", { timeoutMs: 0 }).catch((error) => {
         this.onUpdate({
           type: "log",
           message: `Dev server command completed: ${error}`,
@@ -538,24 +538,6 @@ Return only the file content, no explanations.`
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
       throw new Error(`Export failed: ${message}`)
-    }
-  }
-
-  async cleanup(): Promise<void> {
-    if (this.sandbox) {
-      try {
-        await this.sandbox.kill()
-        this.onUpdate({
-          type: "log",
-          message: "Sandbox cleaned up",
-        })
-      } catch (error) {
-        this.onUpdate({
-          type: "log",
-          message: "Sandbox cleanup failed (not critical)",
-        })
-      }
-      this.sandbox = null
     }
   }
 
