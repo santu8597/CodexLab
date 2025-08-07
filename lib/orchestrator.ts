@@ -20,6 +20,7 @@ export class ProjectOrchestrator {
   private context: ProjectContext
   private onUpdate: (data: any) => void
   private previewUrl: string | null = null
+  private memfs: Map<string, string> = new Map() // In-memory file system
 
   constructor(description: string, onUpdate: (data: any) => void) {
     this.context = {
@@ -99,8 +100,14 @@ export class ProjectOrchestrator {
         message: `✓ E2B sandbox created successfully: ${sandboxId}`,
       })
 
+      // Copy predefined config files to sandbox
+      await this.copyConfigFiles()
+
       // Copy shadcn/ui components to sandbox
       await this.copyShadcnComponents()
+
+      // Install dependencies
+      await this.installDependencies()
 
       return sandboxId
     } catch (error) {
@@ -183,6 +190,76 @@ export class ProjectOrchestrator {
     }
   }
 
+  async copyConfigFiles(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    this.onUpdate({
+      type: "log",
+      message: "Copying configuration files to sandbox...",
+    })
+
+    try {
+      // Copy predefined config files
+      const configFiles = [
+        { path: "package.json", content: packageJson },
+        { path: "tsconfig.json", content: tsconfigJson },
+        { path: "tailwind.config.js", content: tailwindConfig },
+        { path: "postcss.config.mjs", content: postcssConfig },
+        { path: "next.config.js", content: nextConfig },
+        { path: "lib/utils.ts", content: utilsTs }
+      ]
+
+      for (const file of configFiles) {
+        await this.sandbox.files.write(file.path, file.content)
+        this.onUpdate({
+          type: "log",
+          message: `✓ Copied ${file.path} to sandbox`,
+        })
+      }
+
+      this.onUpdate({
+        type: "log",
+        message: "✓ All configuration files copied to sandbox",
+      })
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      this.onUpdate({
+        type: "log",
+        message: `❌ Failed to copy config files: ${message}`,
+      })
+      throw new Error(`Failed to copy config files: ${message}`)
+    }
+  }
+
+  async installDependencies(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    this.onUpdate({
+      type: "log",
+      message: "Installing dependencies in sandbox...",
+    })
+
+    try {
+      await this.runCommand("npm install")
+      this.onUpdate({
+        type: "log",
+        message: "✓ Dependencies installed successfully",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      this.onUpdate({
+        type: "log",
+        message: `❌ Failed to install dependencies: ${message}`,
+      })
+      throw new Error(`Failed to install dependencies: ${message}`)
+    }
+  }
+
   async generateProjectPlan(): Promise<string[]> {
     try {
       if (!process.env.GOOGLE_GENERATIVE_AI_API_KEY) {
@@ -200,19 +277,23 @@ export class ProjectOrchestrator {
 
 Requirements:
 - Use Next.js 14 with App Router
-- Include TypeScript configuration
-- Include Tailwind CSS setup
 - All shadcn/ui components are ALREADY AVAILABLE in components/ui/ - DO NOT include them in the file list
+- The following files are ALREADY PROVIDED and should NOT be generated:
+  * package.json
+  * tsconfig.json  
+  * tailwind.config.js
+  * postcss.config.mjs
+  * next.config.js
+  * lib/utils.ts
 - Create all necessary pages, components, and utilities
-- Include proper package.json with all dependencies
 - Break UI into reusable components and make sure to import them correctly
 - Write the backend code in app/api folder
 - Focus on custom components, pages, and business logic only
 
-IMPORTANT: Do NOT include any files from components/ui/ as they are already provided.
+IMPORTANT: Do NOT include any files from components/ui/ or config files mentioned above as they are already provided.
 
 Return ONLY a JSON array of file paths in order of importance:
-Example format: ["package.json", "next.config.js", "tailwind.config.js", "tsconfig.json", "app/layout.tsx", "app/page.tsx", "app/globals.css", "components/hero.tsx", "lib/utils.ts"]
+Example format: ["app/layout.tsx", "app/page.tsx", "app/globals.css", "components/hero.tsx"]
 
 Focus on creating a functional, complete project structure.`,
       })
@@ -244,17 +325,11 @@ Focus on creating a functional, complete project structure.`,
           message: `Failed to parse AI response, using smart fallback structure for: "${this.context.description}"`,
         })
 
-        // Smart fallback based on project description
+        // Smart fallback based on project description (excluding already provided config files)
         const baseFiles = [
-          "package.json",
-          "next.config.js",
-          "tailwind.config.js",
-          "postcss.config.mjs",
-          "tsconfig.json",
           "app/layout.tsx",
           "app/page.tsx",
           "app/globals.css",
-          "lib/utils.ts",
         ]
         
         // Add specific files based on project type
@@ -283,15 +358,21 @@ Focus on creating a functional, complete project structure.`,
   }
 
   async *generateFile(filePath: string): AsyncGenerator<FileGenerationResult> {
-    if (!this.sandbox) {
-      throw new Error("Sandbox not initialized")
-    }
-
     // Skip generating shadcn/ui components as they are already copied
     if (filePath.startsWith("components/ui/")) {
       this.onUpdate({
         type: "log",
         message: `✓ Skipping ${filePath} - shadcn/ui component already available`,
+      })
+      return
+    }
+
+    // Skip generating config files as they are already provided
+    const configFiles = ["package.json", "tsconfig.json", "tailwind.config.js", "postcss.config.mjs", "next.config.js", "lib/utils.ts"]
+    if (configFiles.includes(filePath)) {
+      this.onUpdate({
+        type: "log",
+        message: `✓ Skipping ${filePath} - config file already provided`,
       })
       return
     }
@@ -558,12 +639,12 @@ Return only the file content, no explanations.`
       // Clean up the content (remove markdown code blocks if present)
       fullContent = fullContent.replace(/```[\w]*\n?|\n?```/g, "").trim()
 
-      // Write the complete file to sandbox
-      await this.sandbox!.files.write(filePath, fullContent)
+      // Store the complete file in memfs (in-memory file system)
+      this.memfs.set(filePath, fullContent)
 
       this.onUpdate({
         type: "log",
-        message: `✓ Generated ${filePath} (${fullContent.length} chars)`,
+        message: `✓ Generated ${filePath} (${fullContent.length} chars) - stored in memory`,
       })
 
       yield {
@@ -628,6 +709,47 @@ Return only the file content, no explanations.`
     }
   }
 
+  async transferFilesToSandbox(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    this.onUpdate({
+      type: "log",
+      message: "Transferring generated files from memory to sandbox...",
+    })
+
+    try {
+      let transferredCount = 0
+      const filePaths = Array.from(this.memfs.keys())
+      
+      for (const filePath of filePaths) {
+        const content = this.memfs.get(filePath)
+        if (content) {
+          await this.sandbox.files.write(filePath, content)
+          transferredCount++
+          this.onUpdate({
+            type: "log",
+            message: `✓ Transferred ${filePath} to sandbox`,
+          })
+        }
+      }
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ Successfully transferred ${transferredCount} files to sandbox`,
+      })
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      this.onUpdate({
+        type: "log",
+        message: `❌ Failed to transfer files to sandbox: ${message}`,
+      })
+      throw new Error(`Failed to transfer files to sandbox: ${message}`)
+    }
+  }
+
   async buildProject(): Promise<void> {
     this.onUpdate({
       type: "status",
@@ -636,12 +758,8 @@ Return only the file content, no explanations.`
     })
 
     try {
-      // Install dependencies
-      this.onUpdate({
-        type: "log",
-        message: "Installing dependencies...",
-      })
-      await this.runCommand("npm install")
+      // Transfer files from memfs to sandbox
+      await this.transferFilesToSandbox()
 
       // Start the dev server in background
       this.onUpdate({
@@ -773,13 +891,17 @@ Return only the file content, no explanations.`
       // Generate project plan
       const files = await this.generateProjectPlan()
 
-      // Filter out any shadcn/ui components that might have been included
-      const filteredFiles = files.filter(file => !file.startsWith("components/ui/"))
+      // Filter out shadcn/ui components and config files that are already provided
+      const configFiles = ["package.json", "tsconfig.json", "tailwind.config.js", "postcss.config.mjs", "next.config.js", "lib/utils.ts"]
+      const filteredFiles = files.filter(file => 
+        !file.startsWith("components/ui/") && 
+        !configFiles.includes(file)
+      )
       
       if (filteredFiles.length !== files.length) {
         this.onUpdate({
           type: "log",
-          message: `Filtered out ${files.length - filteredFiles.length} shadcn/ui components from generation list`,
+          message: `Filtered out ${files.length - filteredFiles.length} pre-provided files from generation list`,
         })
       }
 
@@ -831,5 +953,118 @@ Return only the file content, no explanations.`
       
       throw error
     }
+  }
+
+  // Edit functionality methods
+  async saveFileEdit(filePath: string, content: string): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    try {
+      // Save to sandbox
+      await this.sandbox.files.write(filePath, content)
+      
+      // Also update memfs if the file exists there
+      if (this.memfs.has(filePath)) {
+        this.memfs.set(filePath, content)
+      }
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ File ${filePath} saved successfully`,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      throw new Error(`Failed to save file ${filePath}: ${message}`)
+    }
+  }
+
+  async restartDevServer(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    try {
+      this.onUpdate({
+        type: "log",
+        message: "Restarting development server...",
+      })
+
+      // Kill existing dev server processes
+      await this.sandbox.commands.run("pkill -f 'next dev' || true", { timeoutMs: 5000 })
+      await this.sandbox.commands.run("pkill -f 'node.*next' || true", { timeoutMs: 5000 })
+      
+      // Wait a moment for processes to terminate
+      await new Promise(resolve => setTimeout(resolve, 2000))
+      
+      // Start new dev server in background
+      this.sandbox.commands.run("nohup npm run dev > /tmp/next.log 2>&1 &", { timeoutMs: 0 }).catch(() => {
+        // Ignore errors for background process
+      })
+
+      this.onUpdate({
+        type: "log",
+        message: "✓ Development server restarted",
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      throw new Error(`Failed to restart dev server: ${message}`)
+    }
+  }
+
+  async readFileContent(filePath: string): Promise<string> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    try {
+      const content = await this.sandbox.files.read(filePath)
+      return content
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      throw new Error(`Failed to read file ${filePath}: ${message}`)
+    }
+  }
+
+  async getProjectFiles(): Promise<string[]> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    try {
+      // Get files from memfs and sandbox
+      const memfsFiles = Array.from(this.memfs.keys())
+      
+      // Try to get additional files from sandbox
+      const result = await this.sandbox.commands.run("find . -name '*.tsx' -o -name '*.ts' -o -name '*.css' | grep -v node_modules | grep -v .next | head -20", { timeoutMs: 10000 })
+      
+      const sandboxFiles = result.stdout
+        ? result.stdout.split('\n')
+            .filter(line => line.trim())
+            .map(line => line.replace(/^\.\//, ''))
+        : []
+
+      // Combine and deduplicate
+      const allFilesSet = new Set([...memfsFiles, ...sandboxFiles])
+      const allFiles = Array.from(allFilesSet)
+      return allFiles.filter(file => file && !file.startsWith('node_modules/') && !file.startsWith('.next/'))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      throw new Error(`Failed to get project files: ${message}`)
+    }
+  }
+
+  // Cleanup method
+  async cleanup(): Promise<void> {
+    // Clear memfs
+    this.memfs.clear()
+    
+    // Currently no specific cleanup needed, but could close sandbox connections here
+    // if needed in the future
+    this.onUpdate({
+      type: "log",
+      message: "Project orchestrator cleaned up",
+    })
   }
 }
