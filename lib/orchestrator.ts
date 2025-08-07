@@ -767,6 +767,7 @@ Include:
 - Clean, semantic structure
 
 Note: All shadcn/ui components are already available in components/ui/ and can be imported directly.
+- Note:(very important) Always use default imports for custom made components coming from @/components/***
 
 Return only the TypeScript React code.`
     } else if (filePath.endsWith("page.tsx")) {
@@ -780,6 +781,7 @@ Requirements:
 - Include proper components and layout
 - Make it production-ready and visually appealing
 - make sure to use default imports
+- use "use client"
 Important: Use default imports for all components coming from @/components/***
 
 Note: All shadcn/ui components (Button, Card, Input, etc.) are already available in components/ui/ and can be imported directly.
@@ -796,7 +798,7 @@ Requirements:
 - Create a reusable, well-structured component
 - Include proper props and types
 - Make it functional and production-ready
-
+- use "use client"
 - Note:(very important) Always use default imports for custom made components coming from @/components/***
 
 
@@ -830,7 +832,7 @@ Return only the file content, no explanations.`
       })
 
       const result = await streamText({
-        model: google("gemini-2.5-pro"),
+        model: google("gemini-2.5-flash"),
         prompt: filePrompt,
       })
 
