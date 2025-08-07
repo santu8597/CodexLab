@@ -120,6 +120,54 @@ export class ProjectOrchestrator {
     }
   }
 
+  async createSandboxAsync(): Promise<string> {
+    this.onUpdate({
+      type: "log",
+      message: "Creating E2B sandbox (async)...",
+    })
+
+    if (!process.env.E2B_API_KEY) {
+      throw new Error("E2B_API_KEY environment variable is not set")
+    }
+
+    try {
+      this.sandbox = await Sandbox.create({
+        apiKey: process.env.E2B_API_KEY,
+        timeoutMs: 900000,
+      })
+
+      const sandboxId = this.sandbox.sandboxId
+
+      this.onUpdate({
+        type: "sandbox_created",
+        sandboxId: sandboxId,
+      })
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ E2B sandbox created successfully: ${sandboxId}`,
+      })
+
+      // Copy predefined config files to sandbox
+      await this.copyConfigFiles()
+
+      // Copy shadcn/ui components to sandbox
+      await this.copyShadcnComponents()
+
+      // Install dependencies
+      await this.installDependencies()
+
+      return sandboxId
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      this.onUpdate({
+        type: "log",
+        message: `❌ Failed to create E2B sandbox: ${message}`,
+      })
+      throw new Error(`Failed to create E2B sandbox: ${message}`)
+    }
+  }
+
   async copyShadcnComponents(): Promise<void> {
     if (!this.sandbox) {
       throw new Error("Sandbox not initialized")
@@ -673,6 +721,169 @@ Return only the file content, no explanations.`
     }
   }
 
+  async *generateFileToMemfs(filePath: string): AsyncGenerator<FileGenerationResult> {
+    // Skip generating shadcn/ui components as they are already copied
+    if (filePath.startsWith("components/ui/")) {
+      this.onUpdate({
+        type: "log",
+        message: `✓ Skipping ${filePath} - shadcn/ui component already available`,
+      })
+      return
+    }
+
+    // Skip generating config files as they are already provided
+    const configFiles = ["package.json", "tsconfig.json", "tailwind.config.js", "postcss.config.mjs", "next.config.js", "lib/utils.ts"]
+    if (configFiles.includes(filePath)) {
+      this.onUpdate({
+        type: "log",
+        message: `✓ Skipping ${filePath} - config file already provided`,
+      })
+      return
+    }
+
+    this.onUpdate({
+      type: "file_start",
+      path: filePath,
+    })
+
+    const contextInfo = `
+Project: ${this.context.description}
+Framework: Next.js 14 with App Router, TypeScript, Tailwind CSS
+Current file: ${filePath}
+Other files in project: ${this.context.files.filter((f) => f !== filePath).join(", ")}`
+
+    let filePrompt = ""
+
+    // Generate AI prompts for files
+    if (filePath.endsWith("layout.tsx")) {
+      filePrompt = `Create the root layout.tsx for: "${this.context.description}"
+${contextInfo}
+
+Include:
+- Proper HTML structure
+- Font loading (Inter or similar)
+- Metadata
+- Global CSS import
+- Clean, semantic structure
+
+Note: All shadcn/ui components are already available in components/ui/ and can be imported directly.
+
+Return only the TypeScript React code.`
+    } else if (filePath.endsWith("page.tsx")) {
+      filePrompt = `Create ${filePath} for: "${this.context.description}"
+${contextInfo}
+
+Requirements:
+- Use TypeScript and React
+- Use Tailwind CSS for styling
+- Create a functional, attractive page that matches the project description
+- Include proper components and layout
+- Make it production-ready and visually appealing
+- make sure to use default imports
+Important: Use default imports for all components coming from @/components/***
+
+Note: All shadcn/ui components (Button, Card, Input, etc.) are already available in components/ui/ and can be imported directly.
+Example: import { Button } from "@/components/ui/button"
+
+Return only the TypeScript React code.`
+    } else if (filePath.includes("components/")) {
+      filePrompt = `Create the component ${filePath} for: "${this.context.description}"
+${contextInfo}
+
+Requirements:
+- Use TypeScript and React
+- Use Tailwind CSS for styling
+- Create a reusable, well-structured component
+- Include proper props and types
+- Make it functional and production-ready
+
+- Note:(very important) Always use default imports for custom made components coming from @/components/***
+
+
+Note: All shadcn/ui components (Button, Card, Input, Dialog, etc.) are already available in components/ui/ and can be imported directly.
+Example: import { Button } from "@/components/ui/button"
+
+Return only the TypeScript React code.`
+    } else if (filePath === "app/globals.css") {
+      filePrompt = `Create globals.css with Tailwind CSS and custom styles for: "${this.context.description}"
+Include Tailwind directives and any custom CSS needed.
+Return only the CSS code.`
+    } else {
+      filePrompt = `Create ${filePath} for the project: "${this.context.description}"
+${contextInfo}
+
+Requirements:
+- Use appropriate technology for the file type
+- Make it functional and production-ready
+- Follow best practices
+- Integrate well with the overall project
+
+Return only the file content, no explanations.`
+    }
+
+    let fullContent = ""
+
+    try {
+      this.onUpdate({
+        type: "log",
+        message: `Generating ${filePath} with AI...`,
+      })
+
+      const result = await streamText({
+        model: google("gemini-2.5-pro"),
+        prompt: filePrompt,
+      })
+
+      for await (const delta of result.textStream) {
+        fullContent += delta
+
+        yield {
+          path: filePath,
+          content: fullContent,
+          isComplete: false,
+        }
+
+        this.onUpdate({
+          type: "file_content",
+          path: filePath,
+          content: fullContent,
+          isComplete: false,
+        })
+      }
+
+      // Clean up the content (remove markdown code blocks if present)
+      fullContent = fullContent.replace(/```[\w]*\n?|\n?```/g, "").trim()
+
+      // Store the complete file in memfs (in-memory file system)
+      this.memfs.set(filePath, fullContent)
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ Generated ${filePath} (${fullContent.length} chars) - stored in memory`,
+      })
+
+      yield {
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      }
+
+      this.onUpdate({
+        type: "file_content",
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      this.onUpdate({
+        type: "log",
+        message: `Failed to generate ${filePath}: ${message}`,
+      })
+      throw error
+    }
+  }
+
   async runCommand(command: string): Promise<void> {
     if (!this.sandbox) {
       throw new Error("Sandbox not initialized")
@@ -886,16 +1097,35 @@ Return only the file content, no explanations.`
     try {
       this.onUpdate({
         type: "log",
-        message: "🚀 Starting AI project generation...",
+        message: "🚀 Starting AI project generation with parallel processing...",
       })
 
-      // Create sandbox
-      const sandboxId = await this.createSandbox()
+      // Start sandbox creation and AI planning in parallel
+      this.onUpdate({
+        type: "log",
+        message: "⚡ Starting sandbox setup and AI planning simultaneously...",
+      })
 
-      // Generate project plan
-      const files = await this.generateProjectPlan()
+      // Start sandbox creation (async, non-blocking)
+      const sandboxPromise = this.createSandboxAsync()
+      
+      // Start AI planning immediately (parallel to sandbox creation)
+      const planningPromise = this.generateProjectPlan()
 
-      // Filter out shadcn/ui components and config files that are already provided
+      // Wait for planning to complete first (usually faster than sandbox)
+      this.onUpdate({
+        type: "log",
+        message: "🧠 AI planning in progress...",
+      })
+      
+      const files = await planningPromise
+      
+      this.onUpdate({
+        type: "log",
+        message: `✓ AI planning completed: ${files.length} files planned`,
+      })
+
+      // Filter out pre-provided files
       const configFiles = ["package.json", "tsconfig.json", "tailwind.config.js", "postcss.config.mjs", "next.config.js", "lib/utils.ts"]
       const filteredFiles = files.filter(file => 
         !file.startsWith("components/ui/") && 
@@ -909,7 +1139,13 @@ Return only the file content, no explanations.`
         })
       }
 
-      // Generate each file
+      // Start generating files in memfs immediately (parallel to sandbox setup)
+      this.onUpdate({
+        type: "log",
+        message: "🔥 Starting AI code generation in memory...",
+      })
+
+      // Generate each file in memfs while sandbox is being created
       for (const filePath of filteredFiles) {
         this.onUpdate({
           type: "status",
@@ -917,12 +1153,33 @@ Return only the file content, no explanations.`
           currentFile: filePath,
         })
 
-        for await (const result of this.generateFile(filePath)) {
+        for await (const result of this.generateFileToMemfs(filePath)) {
           yield result
         }
       }
 
-      // Build the project (includes starting dev server)
+      this.onUpdate({
+        type: "log",
+        message: "✓ All files generated in memory, waiting for sandbox...",
+      })
+
+      // Wait for sandbox to be ready
+      this.onUpdate({
+        type: "log",
+        message: "⏳ Waiting for sandbox setup to complete...",
+      })
+      
+      const sandboxId = await sandboxPromise
+      
+      this.onUpdate({
+        type: "log",
+        message: `✓ Sandbox ready: ${sandboxId}`,
+      })
+
+      // Now transfer all generated files from memfs to sandbox
+      await this.transferFilesToSandbox()
+
+      // Build and start the project
       await this.buildProject()
 
       this.onUpdate({
