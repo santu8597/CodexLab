@@ -79,8 +79,8 @@ export function Preview({ sandboxId, previewUrl: externalPreviewUrl }: PreviewPr
   }
 
   return (
-    <div className="flex-1 border-l flex flex-col">
-      <div className="border-b p-3 bg-muted/30">
+    <div className="flex-1 border-l flex flex-col h-full">
+      <div className="border-b p-3 bg-muted/30 flex-shrink-0">
         <div className="flex items-center justify-between">
           <div>
             <div className="font-medium text-sm">Live Preview</div>
@@ -97,7 +97,7 @@ export function Preview({ sandboxId, previewUrl: externalPreviewUrl }: PreviewPr
         </div>
       </div>
 
-      <div className="flex-1 relative">
+      <div className="flex-1 relative min-h-0">
         {error ? (
           <div className="flex items-center justify-center h-full">
             <Card className="p-6 text-center">
@@ -122,7 +122,7 @@ export function Preview({ sandboxId, previewUrl: externalPreviewUrl }: PreviewPr
               <iframe
                 id="preview-iframe"
                 src={previewUrl}
-                className="w-full h-full border-0"
+                className="w-full h-screen border-0 absolute inset-0"
                 onLoad={handleIframeLoad}
                 onError={handleIframeError}
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"

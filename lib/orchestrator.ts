@@ -99,6 +99,9 @@ export class ProjectOrchestrator {
         message: `✓ E2B sandbox created successfully: ${sandboxId}`,
       })
 
+      // Copy shadcn/ui components to sandbox
+      await this.copyShadcnComponents()
+
       return sandboxId
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown error"
@@ -107,6 +110,76 @@ export class ProjectOrchestrator {
         message: `❌ Failed to create E2B sandbox: ${message}`,
       })
       throw new Error(`Failed to create E2B sandbox: ${message}`)
+    }
+  }
+
+  async copyShadcnComponents(): Promise<void> {
+    if (!this.sandbox) {
+      throw new Error("Sandbox not initialized")
+    }
+
+    this.onUpdate({
+      type: "log",
+      message: "Copying shadcn/ui components to sandbox...",
+    })
+
+    try {
+      // Create the components/ui directory
+      await this.sandbox.files.makeDir("components/ui")
+
+      // List of all shadcn/ui components to copy
+      const uiComponents = [
+        "accordion.tsx", "alert-dialog.tsx", "alert.tsx", "aspect-ratio.tsx", "avatar.tsx",
+        "badge.tsx", "breadcrumb.tsx", "button.tsx", "calendar.tsx", "card.tsx",
+        "carousel.tsx", "chart.tsx", "checkbox.tsx", "collapsible.tsx", "command.tsx",
+        "context-menu.tsx", "dialog.tsx", "drawer.tsx", "dropdown-menu.tsx", "form.tsx",
+        "hover-card.tsx", "input-otp.tsx", "input.tsx", "label.tsx", "menubar.tsx",
+        "navigation-menu.tsx", "pagination.tsx", "popover.tsx", "progress.tsx", "radio-group.tsx",
+        "resizable.tsx", "scroll-area.tsx", "select.tsx", "separator.tsx", "sheet.tsx",
+        "sidebar.tsx", "skeleton.tsx", "slider.tsx", "sonner.tsx", "switch.tsx",
+        "table.tsx", "tabs.tsx", "textarea.tsx", "toast.tsx", "toaster.tsx",
+        "toggle-group.tsx", "toggle.tsx", "tooltip.tsx", "use-mobile.tsx", "use-toast.ts"
+      ]
+
+      // Copy each component file
+      for (const componentFile of uiComponents) {
+        try {
+          // Read the local component file
+          const fs = require('fs')
+          const path = require('path')
+          const localPath = path.join(process.cwd(), 'components', 'ui', componentFile)
+          
+          if (fs.existsSync(localPath)) {
+            const componentContent = fs.readFileSync(localPath, 'utf8')
+            
+            // Write to sandbox
+            await this.sandbox.files.write(`components/ui/${componentFile}`, componentContent)
+            
+            this.onUpdate({
+              type: "log",
+              message: `✓ Copied ${componentFile} to sandbox`,
+            })
+          }
+        } catch (error) {
+          this.onUpdate({
+            type: "log",
+            message: `⚠️ Failed to copy ${componentFile}: ${error}`,
+          })
+        }
+      }
+
+      this.onUpdate({
+        type: "log",
+        message: "✓ All shadcn/ui components copied to sandbox",
+      })
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      this.onUpdate({
+        type: "log",
+        message: `❌ Failed to copy shadcn/ui components: ${message}`,
+      })
+      throw new Error(`Failed to copy shadcn/ui components: ${message}`)
     }
   }
 
@@ -129,13 +202,17 @@ Requirements:
 - Use Next.js 14 with App Router
 - Include TypeScript configuration
 - Include Tailwind CSS setup
-- Include shadcn/ui components as needed
+- All shadcn/ui components are ALREADY AVAILABLE in components/ui/ - DO NOT include them in the file list
 - Create all necessary pages, components, and utilities
 - Include proper package.json with all dependencies
 - Break UI into reusable components and make sure to import them correctly
 - Write the backend code in app/api folder
+- Focus on custom components, pages, and business logic only
+
+IMPORTANT: Do NOT include any files from components/ui/ as they are already provided.
+
 Return ONLY a JSON array of file paths in order of importance:
-Example format: ["package.json", "next.config.js", "tailwind.config.js", "tsconfig.json", "app/layout.tsx", "app/page.tsx", "app/globals.css", "components/ui/button.tsx", "lib/utils.ts"]
+Example format: ["package.json", "next.config.js", "tailwind.config.js", "tsconfig.json", "app/layout.tsx", "app/page.tsx", "app/globals.css", "components/hero.tsx", "lib/utils.ts"]
 
 Focus on creating a functional, complete project structure.`,
       })
@@ -189,7 +266,7 @@ Focus on creating a functional, complete project structure.`,
         } else if (description.includes("ecommerce") || description.includes("shop")) {
           baseFiles.push("app/products/page.tsx", "components/product/product-card.tsx")
         } else {
-          baseFiles.push("components/ui/button.tsx", "components/hero.tsx")
+          baseFiles.push("components/hero.tsx", "components/navbar.tsx")
         }
 
         this.context.files = baseFiles
@@ -208,6 +285,15 @@ Focus on creating a functional, complete project structure.`,
   async *generateFile(filePath: string): AsyncGenerator<FileGenerationResult> {
     if (!this.sandbox) {
       throw new Error("Sandbox not initialized")
+    }
+
+    // Skip generating shadcn/ui components as they are already copied
+    if (filePath.startsWith("components/ui/")) {
+      this.onUpdate({
+        type: "log",
+        message: `✓ Skipping ${filePath} - shadcn/ui component already available`,
+      })
+      return
     }
 
     this.onUpdate({
@@ -388,6 +474,8 @@ Include:
 - Global CSS import
 - Clean, semantic structure
 
+Note: All shadcn/ui components are already available in components/ui/ and can be imported directly.
+
 Return only the TypeScript React code.`
     } else if (filePath.endsWith("page.tsx")) {
       filePrompt = `Create ${filePath} for: "${this.context.description}"
@@ -401,6 +489,9 @@ Requirements:
 - Make it production-ready and visually appealing
 - make sure to use default imports
 
+Note: All shadcn/ui components (Button, Card, Input, etc.) are already available in components/ui/ and can be imported directly.
+Example: import { Button } from "@/components/ui/button"
+
 Return only the TypeScript React code.`
     } else if (filePath.includes("components/")) {
       filePrompt = `Create the component ${filePath} for: "${this.context.description}"
@@ -412,6 +503,9 @@ Requirements:
 - Create a reusable, well-structured component
 - Include proper props and types
 - Make it functional and production-ready
+
+Note: All shadcn/ui components (Button, Card, Input, Dialog, etc.) are already available in components/ui/ and can be imported directly.
+Example: import { Button } from "@/components/ui/button"
 
 Return only the TypeScript React code.`
     } else if (filePath === "app/globals.css") {
@@ -679,8 +773,18 @@ Return only the file content, no explanations.`
       // Generate project plan
       const files = await this.generateProjectPlan()
 
+      // Filter out any shadcn/ui components that might have been included
+      const filteredFiles = files.filter(file => !file.startsWith("components/ui/"))
+      
+      if (filteredFiles.length !== files.length) {
+        this.onUpdate({
+          type: "log",
+          message: `Filtered out ${files.length - filteredFiles.length} shadcn/ui components from generation list`,
+        })
+      }
+
       // Generate each file
-      for (const filePath of files) {
+      for (const filePath of filteredFiles) {
         this.onUpdate({
           type: "status",
           status: "generating",
