@@ -569,6 +569,7 @@ Requirements:
 - Include proper components and layout
 - Make it production-ready and visually appealing
 - make sure to use default imports
+Important: Use default imports for all components coming from @/components/***
 
 Note: All shadcn/ui components (Button, Card, Input, etc.) are already available in components/ui/ and can be imported directly.
 Example: import { Button } from "@/components/ui/button"
@@ -584,6 +585,9 @@ Requirements:
 - Create a reusable, well-structured component
 - Include proper props and types
 - Make it functional and production-ready
+
+- Note:(very important) Always use default imports for custom made components coming from @/components/***
+
 
 Note: All shadcn/ui components (Button, Card, Input, Dialog, etc.) are already available in components/ui/ and can be imported directly.
 Example: import { Button } from "@/components/ui/button"
@@ -615,7 +619,7 @@ Return only the file content, no explanations.`
       })
 
       const result = await streamText({
-        model: google("gemini-2.5-flash"),
+        model: google("gemini-2.5-pro"),
         prompt: filePrompt,
       })
 
