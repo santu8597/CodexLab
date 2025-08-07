@@ -1,6 +1,7 @@
 import { generateText, streamText } from "ai"
 import { google } from "@ai-sdk/google"
 import { Sandbox } from '@e2b/code-interpreter'
+import { packageJson, tsconfigJson, tailwindConfig, postcssConfig, nextConfig, utilsTs } from '../basic-files/package'
 export interface ProjectContext {
   description: string
   files: string[]
@@ -171,6 +172,7 @@ Focus on creating a functional, complete project structure.`,
           "package.json",
           "next.config.js",
           "tailwind.config.js",
+          "postcss.config.mjs",
           "tsconfig.json",
           "app/layout.tsx",
           "app/page.tsx",
@@ -221,35 +223,161 @@ Other files in project: ${this.context.files.filter((f) => f !== filePath).join(
 
     let filePrompt = ""
 
-    // Detailed prompts for each file type
+    // Use predefined content for configuration files
     if (filePath === "package.json") {
-      filePrompt = `Create a complete package.json for this Next.js project: "${this.context.description}"
+      const fullContent = packageJson
 
-Include:
-- Next.js 14.x
-- React 18.x
-- TypeScript
-- Tailwind CSS
-- @radix-ui/react-* components for UI
-- lucide-react for icons
-- class-variance-authority and clsx for styling
-- Any other dependencies needed for: ${this.context.description}
-- The dev script MUST be: "dev": "next dev -H 0.0.0.0 -p 3000"
+      // Write the complete file to sandbox
+      await this.sandbox!.files.write(filePath, fullContent)
 
-Return only the JSON content, properly formatted.`
-    } else if (filePath === "next.config.js") {
-      filePrompt = `Create a next.config.js for: "${this.context.description}"
-Include proper configuration for images, experimental features if needed.
-Return only the JavaScript code.`
-    } else if (filePath === "tailwind.config.js") {
-      filePrompt = `Create a tailwind.config.js with shadcn/ui configuration for: "${this.context.description}"
-Include proper content paths, theme extensions, and plugins.
-Return only the JavaScript code.`
+      this.onUpdate({
+        type: "log",
+        message: `✓ Generated ${filePath} (${fullContent.length} chars)`,
+      })
+
+      yield {
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      }
+
+      this.onUpdate({
+        type: "file_content",
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      })
+
+      return
     } else if (filePath === "tsconfig.json") {
-      filePrompt = `Create a tsconfig.json for Next.js 14 with App Router.
-Include proper path mapping and modern TypeScript settings.
-Return only the JSON content.`
-    } else if (filePath.endsWith("layout.tsx")) {
+      const fullContent = tsconfigJson
+
+      // Write the complete file to sandbox
+      await this.sandbox!.files.write(filePath, fullContent)
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ Generated ${filePath} (${fullContent.length} chars)`,
+      })
+
+      yield {
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      }
+
+      this.onUpdate({
+        type: "file_content",
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      })
+
+      return
+    } else if (filePath === "tailwind.config.js") {
+      const fullContent = tailwindConfig
+
+      // Write the complete file to sandbox
+      await this.sandbox!.files.write(filePath, fullContent)
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ Generated ${filePath} (${fullContent.length} chars)`,
+      })
+
+      yield {
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      }
+
+      this.onUpdate({
+        type: "file_content",
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      })
+
+      return
+    } else if (filePath === "postcss.config.mjs") {
+      const fullContent = postcssConfig
+
+      // Write the complete file to sandbox
+      await this.sandbox!.files.write(filePath, fullContent)
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ Generated ${filePath} (${fullContent.length} chars)`,
+      })
+
+      yield {
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      }
+
+      this.onUpdate({
+        type: "file_content",
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      })
+
+      return
+    } else if (filePath === "next.config.js") {
+      const fullContent = nextConfig
+
+      // Write the complete file to sandbox
+      await this.sandbox!.files.write(filePath, fullContent)
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ Generated ${filePath} (${fullContent.length} chars)`,
+      })
+
+      yield {
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      }
+
+      this.onUpdate({
+        type: "file_content",
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      })
+
+      return
+    } else if (filePath === "lib/utils.ts") {
+      const fullContent = utilsTs
+
+      // Write the complete file to sandbox
+      await this.sandbox!.files.write(filePath, fullContent)
+
+      this.onUpdate({
+        type: "log",
+        message: `✓ Generated ${filePath} (${fullContent.length} chars)`,
+      })
+
+      yield {
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      }
+
+      this.onUpdate({
+        type: "file_content",
+        path: filePath,
+        content: fullContent,
+        isComplete: true,
+      })
+
+      return
+    }
+
+    // Generate AI prompts for other files
+    if (filePath.endsWith("layout.tsx")) {
       filePrompt = `Create the root layout.tsx for: "${this.context.description}"
 ${contextInfo}
 
@@ -271,6 +399,7 @@ Requirements:
 - Create a functional, attractive page that matches the project description
 - Include proper components and layout
 - Make it production-ready and visually appealing
+- make sure to use default imports
 
 Return only the TypeScript React code.`
     } else if (filePath.includes("components/")) {
@@ -289,10 +418,6 @@ Return only the TypeScript React code.`
       filePrompt = `Create globals.css with Tailwind CSS and custom styles for: "${this.context.description}"
 Include Tailwind directives and any custom CSS needed.
 Return only the CSS code.`
-    } else if (filePath === "lib/utils.ts") {
-      filePrompt = `Create lib/utils.ts with utility functions for: "${this.context.description}"
-Include cn function for class merging and other utilities as needed.
-Return only the TypeScript code.`
     } else {
       filePrompt = `Create ${filePath} for the project: "${this.context.description}"
 ${contextInfo}
@@ -315,7 +440,7 @@ Return only the file content, no explanations.`
       })
 
       const result = await streamText({
-        model: google("gemini-2.0-flash"),
+        model: google("gemini-2.5-flash"),
         prompt: filePrompt,
       })
 
